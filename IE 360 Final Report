@@ -1,0 +1,1121 @@
+---
+title: "final"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+IE 360-Final Report
+Group 24
+06.07.2020
+
+
+Introduction
+In the internet era, online retailing has a growing share. The e-commerce site Trendyol is one of the most important platforms. These sites must forecast the sales quantity of product to make correct decisions about inventory holding cost.  The available data change on a daily basis; therefore, Trendyol is trying to make remarkable predictions about the future. In this project, 8 products’ forecasting methods are examined predict the next day’s sales quantity.  These products are Xiaomi Bluetooth Headphone, Fakir Sweeper, Trendyolmilla Tight Trousers, Oral-B Re-chargeable Toothbrush, Trendyolmilla Bikini Top, Koton Coat, La Roche Posay Facial Cleanser and Sleepy Wet Towel. The forecast is performed nearly for almost 30 days and is done for tomorrow considering the sales data until yesterday.
+To provide customer satisfaction and avoid opportunity cost, one should carefully analyze past data and create forecast model for each one of the 8 products. Trendyol provides a dataset including different features such as event_date, product_content_id, sold_count, visit_count, favored_count, basket_count, category_sold, category_brand_sold, category_visits, ty_visits and price. 
+The data is altered by removing some columns such as event_date and product_content_id, removing NA values etc. After that, the data is transformed into xts and divided into 8 parts. Then, literature is reviewed and many models are used to forecast sales. In this project, some regression methods, Naive Forecasts, Moving Average and ARIMA are used.
+
+Related Literature 
+Datacamp lectures are our main resource in preparing that project. In addition, we used course lectures, especially time series decomposition lectures. 
+On the other hand, we made a literature search at the internet. The article “How to Create an ARIMA Model for Time Series Forecasting in Python” is utilized. Even if this is specifically about python, it also includes broad propertied which can be used in R. Also, the site clearly explains ARIMA models and its logic behind. 
+All these resources can be found in the references section of this paper.
+
+
+Approach
+In this project, we essentially used four different approaches for forecasting. These modeling approaches are explained below
+Naive Forecast: It is one of the simplest methods that can be used. However, it may be useful when there is so much uncertainty about the next day’s sales. We confront this situation in the Tayt sales in which there is large sales quantity differences every day. 
+Moving Average Modelling: This method also can be considered as a simple method because it only takes the mean value of some past days depending on how many days you want to examine. We thought that the ACF result may help us to guide ourselves in this modelling type. Therefore, we benefit from ACF result obtained. The model will be more sensitive to estimate after creating the AR component.
+Linear Regression: Linear regression is widely used approach in forecasting. This can be used to estimate the sales count because it is used previously to find the significant features. Linear regression is good method to improve accuracy However, its residuals should be arranged accordingly.  Thus, it needed external regressors. Then, we used today’s features because tomorrow’s regressors were not accessible for us. 
+ARIMA: The ARIMA(autoregressive integrated moving average) is an method that can be used to forecast sales using time series data and additional regressors. We divided data into eight different product; therefore, we created eight xts objects for each one of them and transformed data to xts since using it is much simpler than data.frame objects in our perspective. After that, we applied cleaning operations on missing parts. Then we tested and trained our model. We applied some methods in modeling. Firstly, when the variance is needed to be stabilized, we took logarithm to convert multiplicative model to an additive one. The other method is that when the data is not stationary, we carried out many transformation processes to eliminate that. Lastly, we used regular or seasonal differencing if the data seems it has trend.
+
+Results
+During the project, we consistently submitted our results. We have four different forecasting models for making predictions. Several analyses on test data is performed after models are constructed. In this section, we explain general conclusions from that results. We did not put graphs in this section because this can be obtained from code. We preferred to explain in this section.
+The results are consistent for the products which are not affected by price and the season. Face cleanser and leggings are good examples for that. However, the results for products such as headphones and vacuum cleaners are less exact because of changing exchange rates, variation in technological trends and advertising trends. For the products which are affected by strong seasonality on yearly basis, the results were generally zero. Coats and bikinis are good examples for that. For the products like that, live forecasting occurs in the spring.
+These are the observations we made. However, we realized that real life is so complicated since there is so many factors we are not expecting. Even small factors may cause fluctuations. On the other hand, we get nice predictions considering all major factors affecting sales prices.
+
+
+Conclusion and Future Work
+In conclusion, we have written a code producing forecast every day for the certain products of Trendyol Company in Turkey. We used some approaches to do these forecasts as explained in literature review and approach sections. In our project, we used four methods to predict the best forecast. Even though there is error metrics because of the so many factors, we struggled to find best model by trying many approaches. 
+For future works, the examination between cross relations may be done. This could lead to clusters of products that behave coherently. Because some products are complementary to another ones, the cross relation between sales relation of products might increase accuracy of time series forecasting results. The principle of this study can be used in the real application of online trade companies such as Trendyol. Moreover, some external data from google can be used. In addition, if the next days’ price for specific product is known by the analyst, we may have better model. To sum up, it is impossible to model the real world completely, but we could have realistic and models.
+
+
+
+
+References
+- Brownlee, Jason. “How to Create an ARIMA Model for Time Series Forecasting in Python”. https://machinelearningmastery.com/arima-for-time-series-forecasting-with-python/ 
+- Hyndman, Rob J. “Forecasting in R.”   DataCamp, http://learn.datacamp.com/courses/forecasting-in-r.
+- LaBarr, Aric. “Forecasting Product Demand in R.” DataCamp, http://learn.datacamp.com/courses/forecasting-product-demand-in-.
+
+Code
+Here is our code
+
+# install the required packages first
+require(jsonlite)
+require(httr)
+require(data.table)
+
+get_token <- function(username, password, url_site){
+    
+    post_body = list(username=username,password=password)
+    post_url_string = paste0(url_site,'/token/')
+    result = POST(post_url_string, body = post_body)
+
+    # error handling (wrong credentials)
+    if(result$status_code==400){
+        print('Check your credentials')
+        return(0)
+    }
+    else if (result$status_code==201){
+        output = content(result)
+        token = output$key
+    }
+
+    return(token)
+}
+
+get_data <- function(start_date='2020-03-20', token, url_site){
+    
+    post_body = list(start_date=start_date,username=username,password=password)
+    post_url_string = paste0(url_site,'/dataset/')
+    
+    header = add_headers(c(Authorization=paste('Token',token,sep=' ')))
+    result = GET(post_url_string, header, body = post_body)
+    output = content(result)
+    data = data.table::rbindlist(output)
+    data[,event_date:=as.Date(event_date)]
+    data = data[order(product_content_id,event_date)]
+    return(data)
+}
+
+
+send_submission <- function(predictions, token, url_site, submit_now=F){
+    
+    format_check=check_format(predictions)
+    if(!format_check){
+        return(FALSE)
+    }
+    
+    post_string="list("
+    for(i in 1:nrow(predictions)){
+        post_string=sprintf("%s'%s'=%s",post_string,predictions$product_content_id[i],predictions$forecast[i])
+        if(i<nrow(predictions)){
+            post_string=sprintf("%s,",post_string)
+        } else {
+            post_string=sprintf("%s)",post_string)
+        }
+    }
+    
+    submission = eval(parse(text=post_string))
+    json_body = jsonlite::toJSON(submission, auto_unbox = TRUE)
+    submission=list(submission=json_body)
+    
+    print(submission)
+    # {"31515569":2.4,"32939029":2.4,"4066298":2.4,"6676673":2.4,"7061886":2.4,"85004":2.4} 
+
+    if(!submit_now){
+        print("You did not submit.")
+        return(FALSE)      
+    }
+    
+
+    header = add_headers(c(Authorization=paste('Token',token,sep=' ')))
+    post_url_string = paste0(url_site,'/submission/')
+    result = POST(post_url_string, header, body=submission)
+    
+    if (result$status_code==201){
+        print("Successfully submitted. Below you can see the details of your submission")
+    } else {
+        print("Could not submit. Please check the error message below, contact the assistant if needed.")
+    }
+    
+    print(content(result))
+    
+}
+
+check_format <- function(predictions){
+    
+    if(is.data.frame(predictions) | is.data.frame(predictions)){
+        if(all(c('product_content_id','forecast') %in% names(predictions))){
+            if(is.numeric(predictions$forecast)){
+                print("Format OK")
+                return(TRUE)
+            } else {
+                print("forecast information is not numeric")
+                return(FALSE)                
+            }
+        } else {
+            print("Wrong column names. Please provide 'product_content_id' and 'forecast' columns")
+            return(FALSE)
+        }
+        
+    } else {
+        print("Wrong format. Please provide data.frame or data.table object")
+        return(FALSE)
+    }
+    
+}
+
+# this part is main code
+subm_url = 'http://167.172.183.67'
+
+u_name = "Group24"
+p_word = "nLhGLcPO65Eab8EH"
+submit_now = FALSE
+
+username = u_name
+gGpassword = p_word
+
+token = get_token(username=u_name, password=p_word, url=subm_url)
+data = get_data(token=token,url=subm_url)
+
+predictions=unique(data[,list(product_content_id)])
+predictions[,forecast:=2.3]
+
+send_submission(predictions, token, url=subm_url, submit_now=F)
+
+
+
+#MA METHOD for tights. We only conduct MA for tights
+
+dates <- seq(as.Date("2019-04-30"), length = uniqueN(data$event_date), by = "days")
+
+dates <- seq(as.Date("2019-04-30"), length = nrow(data)/8, by = "days")
+
+
+
+tayt <- xts(data[product_content_id==31515569],order.by=dates)
+
+
+#önce MA sonra diğerlerini denemelik yaptım 
+
+#seasonality
+tayt_MA <-  for_trend[,dtrend_lr_tayt:=tayt-lr_trend]
+tayt_bas <- for_trend[,dtrend_lr_tayt:=tayt-lr_trend]
+
+
+tayt_hour <- for_trend[,hour:= hour(datetime)]
+
+tayt_list<- for_trend[, tayt_hour:=mean(tayt_bas,na.rm=T),by=list(hour)]
+head(tayt_list[hour==0])
+
+temp= for_trend[, list(tayt,tayt_MA,tayt_hour)]
+cons_with_trend_seasonality=zoo(temp[,list(tayt,ma_trend,hour_effect_ma)],temp$datetime)
+
+#en son çiz plot et
+plot(cons_with_trend_seasonality)
+
+#arima model sonra error test
+test_tayt<-tail(tayt,7)
+tayt_start <- window(tayt,start="2020-01-05")
+tayt_fav_duration<- window(tayt,start="2020-01-02",end=tayt[nrow(tayt)-3]$event_date)
+tayt_sold_fav <- auto.arima(as.numeric(tayt_start$sold_count), xreg = as.numeric(tayt_fav_duration$favored_count))
+checkresiduals(tayt_sold_fav)
+yarin_tayt_fav <- forecast(tayt_sold_fav, xreg = as.numeric(test_tayt$favored_count))
+
+tayt_son<-tayt_start[-179]
+tayt_sonn <- tayt_son[as.numeric(tayt_son$price)>0]
+
+tayt_sold_visit<-auto.arima(as.numeric(tayt_start$sold_count),xreg=as.numeric(tayt_fav_duration$visit_count))
+checkresiduals(tayt_sold_visit)
+
+yarin_tayt_visit<-forecast(tayt_sold_visit,xreg=as.numeric(test_tayt$visit_count))
+summary(yarin_tayt_visit)
+
+#regressor is mean of basket of 3-5 days 
+ziyaret_tayt<-tail(tayt,5)
+mean_test_basket_tayt<-head(ziyaret_tayt,3)
+mean_basket_tayt<-mean(as.numeric(mean_test_basket_tayt$basket_count))
+tayt_basket_start<-window(tayt,start="2020-01-28")
+tayt_basket<-window(tayt,start="2020-01-25")
+tayt_basket_head<-head(tayt_basket,nrow(tayt_basket_start))
+tayt_sold_basket<-auto.arima(as.numeric(tayt_basket_start$sold_count),xreg=as.numeric(tayt_basket_head$basket_count))
+checkresiduals(tayt_sold_basket)
+#lag 0.1dan kucuk kontrol,normal dagilima yakin, white noise kontrol
+yarin_tayt_basket<-forecast(tayt_sold_basket,xreg=as.numeric(test_tayt$basket_count))
+
+#AIC ler karsilastirildi kucuk olana daha yuksek weight verildi, lag 0.1dan kucuk kontrol,normal dagilima yakin, white noise kontrol
+mixed_yarin_tayt<-(0.40*yarin_tayt_basket$mean[1] + 0.30 * yarin_tayt_visit$mean[1] +0.30*yarin_tayt_fav$mean[1])
+
+
+#tayt için ayır
+products = unique(data$product_content_id)
+
+tayt_d = data[product_content_id == products[1]]
+tayt_d = tayt_d[order(event_date)]
+
+# önce visit_count
+sold_tayt_d=zoo(tayt_d[,list(sold_count, visit_count, basket_count, favored_count)],tayt_d$event_date)
+plot(sold_tayt_d)
+
+# sonra TREND - TAYT
+for_tayt = tayt_d[,list(sold_count, event_date, price, visit_count, favored_count, basket_count)]
+for_tayt = for_tayt[event_date > "2019-10-01"]
+for_tayt[,time_index:=1:.N]
+head(for_tayt)
+
+trend_tayt = lm(sold_count~time_index, data = for_tayt)
+
+
+#trend_tayt = lm(sold_count~time_index+visit_count, data = for_tayt)
+summary(trend_tayt)
+trend_tayt_component = trend_tayt$fitted
+for_tayt[,lr_trend:=trend_tayt_component]
+matplot(for_tayt[,list(sold_count, lr_trend)], type = "l")
+
+for_tayt[,detr_sc:=sold_count-lr_trend]
+detr_for_tayt = for_tayt[,list(detr_sc, event_date, time_index, price, visit_count, favored_count, basket_count)]
+
+y_tayt = ts(detr_for_tayt$detr_sc, freq = 7)
+plot(y_tayt)
+#trendsiz datanin forecasti
+fc_y_tayt = forecast(y_tayt,2)
+t_tayt = ts(for_tayt$lr_trend, freq = 7)
+#trend forecasti
+fc_t_tayt = forecast(t_tayt,2)
+
+fc <- (fc_y_tayt$mean[2]+fc_t_tayt$mean[2])*0.55 + mixed_yarin_tayt[1]*0.45
+
+
+#test for tayt
+sum_mae <- 0
+sum_mape <-0
+for(i in seq(1,7,1)){
+    #started 2 days early, since we are guessing tomorrow with yesterday's data in the project
+    tayt_test_model<-window(tayt,end=as.Date(as.Date("2020-05-18")+i-1))
+    test_tayt<-tail(tayt_test_model,7)
+    #same models from above
+    tayt_start <- window(tayt_test_model,start="2020-01-05")
+    tayt_fav_duration<- window(tayt_test_model,start="2020-01-02",end=tayt_test_model[nrow(tayt_test_model)-3]$event_date)
+    
+    tayt_sold_fav <- auto.arima(as.numeric(tayt_start$sold_count), xreg = as.numeric(tayt_fav_duration$favored_count))
+    yarin_tayt_fav <- forecast(tayt_sold_fav, xreg = as.numeric(test_tayt$favored_count))
+    
+    tayt_son<-tayt_test_model[-179]
+    tayt_sonn <- tayt_son[as.numeric(tayt_son$price)>0]
+    
+    tayt_sold_visit<-auto.arima(as.numeric(tayt_start$sold_count),xreg=as.numeric(tayt_fav_duration$visit_count))
+    
+    yarin_tayt_visit<-forecast(tayt_sold_visit,xreg=as.numeric(test_tayt$visit_count))
+    
+    ziyaret_tayt<-tail(tayt,5)
+    mean_test_basket_tayt<-head(ziyaret_tayt,3)
+    mean_basket_tayt<-mean(as.numeric(mean_test_basket_tayt$basket_count))
+    tayt_basket_start<-window(tayt_test_model,start="2020-01-28")
+    tayt_basket<-window(tayt_test_model,start="2020-01-25")
+    tayt_basket_head<-head(tayt_basket,nrow(tayt_basket_start))
+    tayt_sold_basket<-auto.arima(as.numeric(tayt_basket_start$sold_count),xreg=as.numeric(tayt_basket_head$basket_count))
+    
+    yarin_tayt_basket<-forecast(tayt_sold_basket,xreg=as.numeric(test_tayt$basket_count))
+    
+    
+    mixed_yarin_tayt<-(0.40*yarin_tayt_basket$mean[1] + 0.30 * yarin_tayt_visit$mean[1] +0.30*yarin_tayt_fav$mean[1])
+    
+    #test datasÄ± official sales
+    test_data_tayt<-head(window(tayt,start="2020-05-20"),7)
+    
+    #mae and mape calculation for that week
+    sum_mae <- sum_mae+ abs(as.numeric(test_data_tayt$sold_count[i])-mixed_yarin_tayt[1])
+    mae_tayt_arima<-sum_mae/7
+    sum_mape <- sum_mape + (abs(as.numeric(test_data_tayt$sold_count[i])-mixed_yarin_tayt[1])/as.numeric(test_data_tayt$sold_count[i]))
+    mape_tayt_arima <- sum_mape/7 * 100
+}
+
+fc_tayt <- -1
+for(i in 1:7){
+    for_tayt = tayt_d[,list(sold_count, event_date, price, visit_count, favored_count, basket_count)]
+    
+    for_tayt = for_tayt[event_date > "2019-10-01" & event_date < as.Date(as.Date("2020-05-18") + i)]
+    for_tayt[,time_index:=1:.N]
+    #head(for_tayt)    
+    #tail(for_tayt)
+    
+    trend_tayt = lm(sold_count~time_index, data = for_tayt)
+    summary(trend_tayt)
+    trend_tayt_component = trend_tayt$fitted
+    for_tayt[,lr_trend:=trend_tayt_component]
+    #matplot(for_tayt[,list(sold_count, lr_trend)], type = "l")
+    
+    for_tayt[,detr_sc:=sold_count-lr_trend]
+    detr_for_tayt = for_tayt[,list(detr_sc, event_date, time_index, price, visit_count, favored_count, basket_count)]
+    
+    y_tayt = ts(detr_for_tayt$detr_sc, freq = 7)
+    t_tayt = ts(for_tayt$lr_trend, freq = 7)
+    
+    fc_y_tayt = forecast(y_tayt,1)
+    fc_t_tayt = forecast(t_tayt,1)
+    
+    fc_tayt <- c(fc_tayt, (fc_y_tayt$mean[1]+fc_t_tayt$mean[1]))
+    
+}
+
+fc_tayt <- fc_tayt[-1]
+fc_tayt
+
+for_tayt_test = tayt_d[,list(sold_count, event_date, price, visit_count, favored_count, basket_count)]
+for_tayt_test = for_tayt_test[event_date >= "2020-05-20" & event_date < as.Date(as.Date("2020-05-20")+7)]$sold_count
+
+mae_tayt <- mean(abs(fc_tayt-for_tayt_test))
+mape_tayt <- 100*mean(abs((fc_tayt-for_tayt_test)/for_tayt_test))
+
+
+
+
+
+
+
+
+
+
+#naive and linear regression
+
+data[product_content_id==6676673 & year(as.Date(event_date))==2020]
+
+
+sample_product=data[product_content_id==3904356  ]
+filtered_product=sample_product[visit_count>0]
+plot(filtered_product[, list(price,sold_count)])
+plot(filtered_product[, list(ty_visits,sold_count)])
+plot(filtered_product[, list(visit_count,sold_count)])
+
+sample_product2=data[product_content_id==6676673]
+filtered_product2=sample_product2[visit_count>0]
+plot(filtered_product2[, list(price,sold_count)])
+plot(filtered_product2[, list(ty_visits,sold_count)])
+plot(filtered_product2[, list(visit_count,sold_count)])
+
+sample_product3=data[product_content_id==4066298]
+filtered_product3=sample_product3[visit_count>0]
+plot(filtered_product3[, list(price,sold_count)])
+plot(filtered_product3[, list(ty_visits,sold_count)])
+plot(filtered_product3[, list(visit_count,sold_count)])
+
+sample_product4=data[product_content_id==32939029]
+filtered_product4=sample_product4[visit_count>0]
+plot(filtered_product4[, list(price,sold_count)])
+plot(filtered_product4[, list(ty_visits,sold_count)])
+plot(filtered_product4[, list(visit_count,sold_count)])
+
+sample_product5=data[product_content_id==85004]
+filtered_product5=sample_product5[visit_count>0]
+plot(filtered_product5[, list(price,sold_count)])
+plot(filtered_product5[, list(ty_visits,sold_count)])
+plot(filtered_product5[, list(visit_count,sold_count)])
+
+sample_product6=data[product_content_id==7061886]
+filtered_product6=sample_product6[visit_count>0]
+plot(filtered_product6[, list(price,sold_count)])
+plot(filtered_product6[, list(ty_visits,sold_count)])
+plot(filtered_product6[, list(visit_count,sold_count)])
+
+sample_product7=data[product_content_id==5926527]
+filtered_product7=sample_product7[visit_count>0]
+plot(filtered_product7[, list(price,sold_count)])
+plot(filtered_product7[, list(ty_visits,sold_count)])
+plot(filtered_product7[, list(visit_count,sold_count)])
+
+sample_product8=data[product_content_id==31515569]
+filtered_product8=sample_product8[visit_count>0]
+plot(filtered_product8[, list(price,sold_count)])
+plot(filtered_product8[, list(ty_visits,sold_count)])
+plot(filtered_product8[, list(visit_count,sold_count)])
+
+#naive model ilkeeel
+
+filtered_product=filtered_product[order(event_date)]
+filtered_product[,event_date:=as.Date(event_date)]
+
+filtered_product=filtered_product[,list(product_content_id,event_date,price,sold_count)]
+
+
+
+
+type1<-subset(filtered_product,subset = (product_content_id==6676673))
+type2<-subset(filtered_product2,subset = (product_content_id==3904356))
+type3<-subset(filtered_product3,subset = (product_content_id==4066298))
+type4<-subset(filtered_product4,subset = (product_content_id==32939029))
+type5<-subset(filtered_product5,subset = (product_content_id==85004))
+type6<-subset(filtered_product6,subset = (product_content_id==7061886))
+type7<-subset(filtered_product7,subset = (product_content_id==5926527))
+type8<-subset(filtered_product8,subset = (product_content_id==31515569))
+
+type1<-type1[373:1,]
+type2<-type2[373:1,]
+type3<-type3[373:1,]
+type4<-type4[373:1,]
+type5<-type5[373:1,]
+type6<-type6[373:1,]
+type7<-type7[373:1,]
+type8<-type8[373:1,]
+
+sales_data_bluetoothheadphone<-ts(type1$sold_count,start=c(2019,120),frequency=365)
+ts.plot(sales_data_bluetoothheadphone)
+sales_data_mont<-ts(type2$sold_count,start=c(2019,120),frequency=365)
+ts.plot(sales_data_mont)
+sales_data_wetwipe<-ts(type3$sold_count,start=c(2019,120),frequency=365)
+ts.plot(sales_data_wetwipe)
+sales_data_chargedtootbrush<-ts(type4$sold_count,start=c(2019,120),frequency=365)
+ts.plot(sales_data_chargedtootbrush)
+sales_data_facecleaner<-ts(type5$sold_count,start=c(2019,120),frequency=365)
+ts.plot(sales_data_facecleaner)
+sales_data_vacuumcleaner<-ts(type6$sold_count,start=c(2019,120),frequency=365)
+ts.plot(sales_data_vacuumcleaner)
+sales_data_bikini<-ts(type7$sold_count,start=c(2019,120),frequency=365)
+ts.plot(sales_data_bikini)
+sales_data_tights<-ts(type8$sold_count,start=c(2019,120),frequency=365)
+ts.plot(sales_data_tights)
+is.na(type1)
+
+
+type1mod<-type1[-c(1:313),]
+type2mod<-type2[-c(1:313),]
+type3mod<-type3[-c(1:313),]
+type7mod<-type7[-c(1:313),]
+type4mod<-type4[-c(1:313),]
+type5mod<-type5[-c(1:313),]
+type6mod<-type6[-c(1:313),]
+type8mod<-type8[-c(1:313),]
+
+linearMod1 <- lm(sold_count ~price+sold_count,method = "linear regression", data= type1mod) 
+anova(linearMod1)
+type1_pred <- predict(linearMod1, newdata = type1mod,type = "response")
+type1_pred
+prediction1=ts(type1_pred,frequency = 365,start = c(2020,128))
+ts.plot(sales_data_bluetoothheadphone,prediction1,gpars = list(col=c("black","red")))
+
+
+
+
+linearMod2 <- lm(sold_count~visit_count+basket_count+favored_count+category_sold,method = "linear regression", data= type2mod) 
+anova(linearMod2)
+type2_pred <- predict(linearMod2, newdata = type2mod,type = "response")
+type2_pred
+prediction2=ts(type2_pred,frequency = 365,start = c(2020,148))
+ts.plot(sales_data_mont,prediction2,gpars = list(col=c("black","red")))
+
+linearMod3 <- lm(sold_count ~price+visit_count+basket_count+favored_count+category_sold+category_brand_sold,method = "linear regression", data= type3mod) 
+anova(linearMod3)
+type3_pred <- predict(linearMod3, newdata = type3mod,type = "response")
+type3_pred
+prediction3=ts(type3_pred,frequency = 365,start = c(2020,148))
+ts.plot(sales_data_wetwipe,prediction3,gpars = list(col=c("black","red")))
+
+linearMod4 <- lm(sold_count ~price+visit_count+basket_count+favored_count+category_sold+category_brand_sold,method = "linear regression", data= type4mod) 
+anova(linearMod4)
+type4_pred <- predict(linearMod4,type = "response")
+type4_pred
+prediction4=ts(type4_pred,frequency = 365,start = c(2020,148))
+ts.plot(sales_data_chargedtootbrush,prediction4,gpars = list(col=c("black","red")))
+
+linearMod5 <- lm(sold_count ~price+visit_count+basket_count+favored_count+category_sold+category_brand_sold,method = "linear regression", data= type5mod) 
+anova(linearMod5)
+type5_pred <- predict(linearMod5, type = "response")
+type5_pred
+prediction5=ts(type5_pred,frequency = 365,start = c(2020,128))
+ts.plot(sales_data_facecleaner,prediction5,gpars = list(col=c("black","red")))
+
+linearMod6 <- lm(sold_count ~price+visit_count+basket_count+favored_count+category_sold+category_brand_sold,method = "linear regression", data= type6mod) 
+anova(linearMod6)
+type6_pred <- predict(linearMod6)
+type6_pred
+prediction6=ts(type6_pred,frequency = 365,start = c(2020,148))
+ts.plot(sales_data_vacuumcleaner,prediction6,gpars = list(col=c("black","red")))
+
+
+linearMod7 <- lm(sold_count ~visit_count+basket_count+favored_count+category_sold+category_brand_sold,method = "linear regression", data= type7mod) 
+anova(linearMod7)
+type7_pred <- predict(linearMod7, newdata = type7mod,type = "response")
+type7_pred
+prediction7=ts(type7_pred,frequency = 365,start = c(2020,148))
+ts.plot(sales_data_bikini,prediction7,gpars = list(col=c("black","red")))
+
+
+linearMod8 <- lm(sold_count ~.,method = "linear regression", data= type8) 
+anova(linearMod8)
+type8_pred <- predict(linearMod8, newdata = type8mod,type = "response")
+type8_pred
+prediction8=ts(type8_pred,frequency = 365,start = c(2020,148))
+ts.plot(sales_data_tights,prediction8,gpars = list(col=c("black","red")))
+
+
+
+
+
+
+#arima for facial cleanser
+
+
+data[product_content_id==85004 & year(as.Date(event_date))==2020]
+
+
+sample_product=data[product_content_id==85004]
+filtered_product=sample_product[visit_count>0]
+plot(filtered_product[, list(price,sold_count)])
+plot(filtered_product[, list(ty_visits,sold_count)])
+plot(filtered_product[, list(visit_count,sold_count)])
+
+filtered_product=filtered_product[order(event_date)]
+filtered_product[,event_date:=as.Date(event_date)]
+filtered_product=filtered_product[,list(product_content_id,event_date,price,sold_count)]
+filtered_product
+ts_sales_facial_cleanser<-ts(filtered_product$sold_count,start=c(2019,120),frequency = 365)
+library(forecast)
+tsdisplay(ts_sales_facial_cleanser,lag.max = 30)
+log_ts<-log(ts_sales_facial_cleanser)
+tsdisplay(as.factor(log_ts),lag.max=30)
+tsdisplay(diff(as.factor(log_ts)),lag.max=30)
+tsdisplay(diff(diff(as.factor(log_ts)),lag.max=30))
+as.numeric(mean(diff(diff(log_ts),lag=10)))
+
+
+
+
+cand1<-arima(as.factor(log_ts),order=c(0,1,1),seasonal=c(1,1,0))
+cand1
+tsdisplay(cand1$residuals)
+plot(forecast(cand1,h=30))
+
+cand2<-arima(as.factor(log_ts),order=c(5,1,1),seasonal=c(1,1,0))
+cand2
+tsdisplay((cand2$residuals))
+plot(forecast(cand2,h=30))
+
+cand3<-arima(as.factor(log_ts),order=c(0,1,3),seasonal=c(1,1,0))
+cand3
+tsdisplay((cand3$residuals))
+plot(forecast(cand3,h=30))
+
+
+
+cand4<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,1,0))
+cand4
+tsdisplay((cand4$residuals))
+plot(forecast(cand4,h=30))
+
+cand5<-auto.arima(as.factor(log_ts))
+cand5
+tsdisplay((cand5$residuals))
+plot(forecast(cand5,h=30))
+
+cand6<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,3,0))
+cand6
+tsdisplay((cand6$residuals))
+plot(forecast(cand6,h=30))
+
+bestmodelof_facial_cleanser<-cand3
+bestmodelof_facial_cleanser
+tsdisplay(bestmodelof_facial_cleanser$residuals)
+plot(forecast(bestmodelof_facial_cleanser,h=30))
+
+sales_forecast_facial_cleanser<-forecast(bestmodelof_facial_cleanser,h=30)
+sales_forecast_facial_cleanser
+plot(sales_forecast_facial_cleanser)
+
+
+
+#arima for wet pipes
+
+
+data[product_content_id==4066298 & year(as.Date(event_date))==2020]
+
+
+sample_product=data[product_content_id==4066298]
+filtered_product=sample_product[visit_count>0]
+plot(filtered_product[, list(price,sold_count)])
+plot(filtered_product[, list(ty_visits,sold_count)])
+plot(filtered_product[, list(visit_count,sold_count)])
+
+filtered_product=filtered_product[order(event_date)]
+filtered_product[,event_date:=as.Date(event_date)]
+filtered_product=filtered_product[,list(product_content_id,event_date,price,sold_count)]
+filtered_product
+ts_sales<-ts(filtered_product$sold_count,start=c(2019,120),frequency = 365)
+library(forecast)
+tsdisplay(ts_sales,lag.max = 30)
+log_ts<-log(ts_sales)
+tsdisplay(as.factor(log_ts),lag.max=30)
+tsdisplay(diff(as.factor(log_ts)),lag.max=30)
+tsdisplay(diff(diff(as.factor(log_ts)),lag.max=30))
+as.numeric(mean(diff(diff(log_ts),lag=10)))
+
+
+
+
+cand1<-arima(as.factor(log_ts),order=c(0,1,1),seasonal=c(1,1,0))
+cand1
+tsdisplay(cand1$residuals)
+plot(forecast(cand1,h=30))
+
+cand2<-arima(as.factor(log_ts),order=c(3,1,2),seasonal=c(1,1,0))
+cand2
+tsdisplay((cand2$residuals))
+plot(forecast(cand2,h=30))
+
+cand3<-arima(as.factor(log_ts),order=c(0,1,0),seasonal=c(1,1,0))
+cand3
+tsdisplay((cand3$residuals))
+plot(forecast(cand3,h=30))
+
+
+
+cand4<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,1,0))
+cand4
+tsdisplay((cand4$residuals))
+plot(forecast(cand4,h=30))
+
+cand5<-auto.arima(as.factor(log_ts))
+cand5
+tsdisplay((cand5$residuals))
+plot(forecast(cand5,h=30))
+
+cand6<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,3,0))
+cand6
+tsdisplay((cand6$residuals))
+plot(forecast(cand6,h=30))
+
+bestmodel_wet_wipes_towel<-cand2
+bestmodel_wet_wipes_towel
+tsdisplay(bestmodel_wet_wipes_towel$residuals)
+plot(forecast(bestmodel_wet_wipes_towel,h=30))
+
+sales_forecast_wet_wipes_towel<-forecast(bestmodel_wet_wipes_towel,h=30)
+sales_forecast_wet_wipes_towel
+plot(sales_forecast_wet_wipes_towel)
+
+
+#arima for Bluetooth HEadset
+
+data[product_content_id==6676673 & year(as.Date(event_date))==2020]
+
+
+sample_product=data[product_content_id==6676673]
+filtered_product=sample_product[visit_count>0]
+plot(filtered_product[, list(price,sold_count)])
+plot(filtered_product[, list(ty_visits,sold_count)])
+plot(filtered_product[, list(visit_count,sold_count)])
+
+filtered_product=filtered_product[order(event_date)]
+filtered_product[,event_date:=as.Date(event_date)]
+filtered_product=filtered_product[,list(product_content_id,event_date,price,sold_count)]
+filtered_product
+ts_sales<-ts(filtered_product$sold_count,start=c(2019,120),frequency = 365)
+library(forecast)
+tsdisplay(ts_sales,lag.max = 30)
+log_ts<-log(ts_sales)
+tsdisplay(as.factor(log_ts),lag.max=30)
+tsdisplay(diff(as.factor(log_ts)),lag.max=30)
+tsdisplay(diff(diff(as.factor(log_ts)),lag.max=30))
+as.numeric(mean(diff(diff(log_ts),lag=10)))
+
+
+cand1<-arima(as.factor(log_ts),order=c(0,1,1),seasonal=c(1,1,0))
+cand1
+tsdisplay(cand1$residuals)
+plot(forecast(cand1,h=30))
+
+cand2<-arima(as.factor(log_ts),order=c(5,1,1),seasonal=c(1,1,0))
+cand2
+tsdisplay((cand2$residuals))
+plot(forecast(cand2,h=30))
+
+cand3<-arima(as.factor(log_ts),order=c(3,1,3),seasonal=c(1,1,0))
+cand3
+tsdisplay((cand3$residuals))
+plot(forecast(cand3,h=30))
+
+
+
+cand4<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,1,0))
+cand4
+tsdisplay((cand4$residuals))
+plot(forecast(cand4,h=30))
+
+cand5<-auto.arima(as.factor(log_ts))
+cand5
+tsdisplay((cand5$residuals))
+plot(forecast(cand5,h=30))
+
+cand6<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,3,0))
+cand6
+tsdisplay((cand6$residuals))
+plot(forecast(cand6,h=30))
+
+bestmodel_bluetooth_headset<-cand3
+bestmodel_bluetooth_headset
+tsdisplay(bestmodel_bluetooth_headset$residuals)
+plot(forecast(bestmodel_bluetooth_headset,h=30))
+
+sales_forecast_bluetooth_headset<-forecast(bestmodel_bluetooth_headset,h=30)
+sales_forecast_bluetooth_headset
+plot(sales_forecast_bluetooth_headset)
+
+
+#arima for Fakir sweeper
+
+
+data[product_content_id==7061886 & year(as.Date(event_date))==2020]
+
+
+sample_product=data[product_content_id==7061886]
+filtered_product=sample_product[visit_count>0]
+plot(filtered_product[, list(price,sold_count)])
+plot(filtered_product[, list(ty_visits,sold_count)])
+plot(filtered_product[, list(visit_count,sold_count)])
+
+filtered_product=filtered_product[order(event_date)]
+filtered_product[,event_date:=as.Date(event_date)]
+filtered_product=filtered_product[,list(product_content_id,event_date,price,sold_count)]
+filtered_product
+ts_sales<-ts(filtered_product$sold_count,start=c(2019,120),frequency = 365)
+library(forecast)
+tsdisplay(ts_sales,lag.max = 30)
+log_ts<-log(ts_sales)
+tsdisplay(as.factor(log_ts),lag.max=30)
+tsdisplay(diff(as.factor(log_ts)),lag.max=30)
+tsdisplay(diff(diff(as.factor(log_ts)),lag.max=30))
+as.numeric(mean(diff(diff(log_ts),lag=10)))
+
+
+
+
+cand1<-arima(as.factor(log_ts),order=c(1,1,1),seasonal=c(1,1,0))
+cand1
+tsdisplay(cand1$residuals)
+plot(forecast(cand1,h=30))
+
+cand2<-arima(as.factor(log_ts),order=c(2,1,1),seasonal=c(1,1,0))
+cand2
+tsdisplay((cand2$residuals))
+plot(forecast(cand2,h=30))
+
+cand3<-arima(as.factor(log_ts),order=c(0,1,0),seasonal=c(1,1,0))
+cand3
+tsdisplay((cand3$residuals))
+plot(forecast(cand3,h=30))
+
+
+
+cand4<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,1,0))
+cand4
+tsdisplay((cand4$residuals))
+plot(forecast(cand4,h=30))
+
+cand5<-auto.arima(as.factor(log_ts))
+cand5
+tsdisplay((cand5$residuals))
+plot(forecast(cand5,h=30))
+
+
+
+bestmodel_vacuum_cleanser<-cand1
+bestmodel_vacuum_cleanser
+tsdisplay(bestmodel_vacuum_cleanser$residuals)
+plot(forecast(bestmodel_vacuum_cleanser,h=30))
+
+sales_forecast_vacuum_cleanser<-forecast(bestmodel_vacuum_cleanser,h=30)
+sales_forecast_vacuum_cleanser
+plot(sales_forecast_vacuum_cleanser)
+
+
+
+#arima for tights
+
+
+data[product_content_id==31515569 & year(as.Date(event_date))==2020]
+
+
+sample_product=data[product_content_id==31515569]
+filtered_product=sample_product[visit_count>0]
+plot(filtered_product[, list(price,sold_count)])
+plot(filtered_product[, list(ty_visits,sold_count)])
+plot(filtered_product[, list(visit_count,sold_count)])
+
+filtered_product=filtered_product[order(event_date)]
+filtered_product[,event_date:=as.Date(event_date)]
+filtered_product=filtered_product[,list(product_content_id,event_date,price,sold_count)]
+filtered_product
+ts_sales<-ts(filtered_product$sold_count,start=c(2019,120),frequency = 365)
+library(forecast)
+tsdisplay(ts_sales,lag.max = 30)
+log_ts<-log(ts_sales)
+tsdisplay(as.factor(log_ts),lag.max=30)
+tsdisplay(diff(as.factor(log_ts)),lag.max=30)
+tsdisplay(diff(diff(as.factor(log_ts)),lag.max=30))
+as.numeric(mean(diff(diff(log_ts),lag=10)))
+
+
+
+cand1<-arima(as.factor(log_ts),order=c(0,1,1),seasonal=c(1,1,0))
+cand1
+tsdisplay(cand1$residuals)
+plot(forecast(cand1,h=30))
+
+cand2<-arima(as.factor(log_ts),order=c(5,1,1),seasonal=c(1,1,0))
+cand2
+tsdisplay((cand2$residuals))
+plot(forecast(cand2,h=30))
+
+cand3<-arima(as.factor(log_ts),order=c(0,1,0),seasonal=c(1,1,0))
+cand3
+tsdisplay((cand3$residuals))
+plot(forecast(cand3,h=30))
+
+
+
+cand4<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,1,0))
+cand4
+tsdisplay((cand4$residuals))
+plot(forecast(cand4,h=30))
+
+cand5<-auto.arima(as.factor(log_ts))
+cand5
+tsdisplay((cand5$residuals))
+plot(forecast(cand5,h=30))
+
+cand6<-arima(as.factor(log_ts),order=c(2,1,2),seasonal=c(1,1,0))
+cand6
+tsdisplay((cand6$residuals))
+plot(forecast(cand6,h=30))
+
+bestmodel_tights<-cand6
+bestmodel_tights
+tsdisplay(bestmodel_tights$residuals)
+plot(forecast(bestmodel_tights,h=30))
+
+sales_forecast<-forecast(bestmodel_tights,h=30)
+sales_forecast
+plot(sales_forecast)
+
+
+
+
+#arima for tootbrush
+
+
+data[product_content_id==32939029 & year(as.Date(event_date))==2020]
+
+
+sample_product=data[product_content_id==32939029]
+filtered_product=sample_product[visit_count>0]
+plot(filtered_product[, list(price,sold_count)])
+plot(filtered_product[, list(ty_visits,sold_count)])
+plot(filtered_product[, list(visit_count,sold_count)])
+
+filtered_product=filtered_product[order(event_date)]
+filtered_product[,event_date:=as.Date(event_date)]
+filtered_product=filtered_product[,list(product_content_id,event_date,price,sold_count)]
+filtered_product
+ts_sales<-ts(filtered_product$sold_count,start=c(2019,120),frequency = 365)
+library(forecast)
+tsdisplay(ts_sales,lag.max = 30)
+log_ts<-log(ts_sales)
+tsdisplay(as.factor(log_ts),lag.max=30)
+tsdisplay(diff(as.factor(log_ts)),lag.max=30)
+tsdisplay(diff(diff(as.factor(log_ts)),lag.max=30))
+as.numeric(mean(diff(diff(log_ts),lag=10)))
+
+
+
+
+cand1<-arima(as.factor(log_ts),order=c(0,1,1),seasonal=c(1,1,0))
+cand1
+tsdisplay(cand1$residuals)
+plot(forecast(cand1,h=30))
+
+cand2<-arima(as.factor(log_ts),order=c(1,1,5),seasonal=c(1,1,0))
+cand2
+tsdisplay((cand2$residuals))
+plot(forecast(cand2,h=30))
+
+cand3<-arima(as.factor(log_ts),order=c(0,1,0),seasonal=c(1,1,0))
+cand3
+tsdisplay((cand3$residuals))
+plot(forecast(cand3,h=30))
+
+
+
+cand4<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,1,0))
+cand4
+tsdisplay((cand4$residuals))
+plot(forecast(cand4,h=30))
+
+cand5<-auto.arima(as.factor(log_ts))
+cand5
+tsdisplay((cand5$residuals))
+plot(forecast(cand5,h=30))
+
+cand6<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,3,0))
+cand6
+tsdisplay((cand6$residuals))
+plot(forecast(cand6,h=30))
+
+bestmodel_toothbrush<-cand2
+bestmodel_toothbrush
+tsdisplay(bestmodel_toothbrush$residuals)
+plot(forecast(bestmodel_toothbrush,h=30))
+
+sales_forecast<-forecast(bestmodel_toothbrush,h=30)
+sales_forecast
+plot(sales_forecast)
+
+
+
+#arima for bikini
+
+
+data[product_content_id==5926527 & year(as.Date(event_date))==2020]
+
+
+sample_product=data[product_content_id==5926527]
+filtered_product=sample_product[visit_count>0]
+plot(filtered_product[, list(price,sold_count)])
+plot(filtered_product[, list(ty_visits,sold_count)])
+plot(filtered_product[, list(visit_count,sold_count)])
+
+filtered_product=filtered_product[order(event_date)]
+filtered_product[,event_date:=as.Date(event_date)]
+filtered_product=filtered_product[,list(product_content_id,event_date,price,sold_count)]
+filtered_product
+ts_sales<-ts(filtered_product$sold_count,start=c(2019,120),frequency = 365)
+library(forecast)
+tsdisplay(ts_sales,lag.max = 30)
+log_ts<-log(ts_sales)
+tsdisplay(as.factor(log_ts),lag.max=30)
+tsdisplay(diff(as.factor(log_ts)),lag.max=30)
+tsdisplay(diff(diff(as.factor(log_ts)),lag.max=30))
+as.numeric(mean(diff(diff(log_ts),lag=10)))
+
+
+
+
+cand1<-arima(as.factor(log_ts),order=c(1,1,1),seasonal=c(1,1,0))
+cand1
+tsdisplay(cand1$residuals)
+plot(forecast(cand1,h=30))
+
+cand2<-arima(as.factor(log_ts),order=c(5,1,1),seasonal=c(1,1,0))
+cand2
+tsdisplay((cand2$residuals))
+plot(forecast(cand2,h=30))
+
+cand3<-arima(as.factor(log_ts),order=c(0,1,0),seasonal=c(1,1,0))
+cand3
+tsdisplay((cand3$residuals))
+plot(forecast(cand3,h=30))
+
+
+
+cand4<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,1,0))
+cand4
+tsdisplay((cand4$residuals))
+plot(forecast(cand4,h=30))
+
+cand5<-auto.arima(as.factor(log_ts))
+cand5
+tsdisplay((cand5$residuals))
+plot(forecast(cand5,h=30))
+
+cand6<-arima(as.factor(log_ts),order=c(2,0,1),seasonal=c(1,1,0))
+cand6
+tsdisplay((cand6$residuals))
+plot(forecast(cand6,h=30))
+
+bestmodel_bikini<-cand1
+bestmodel_bikini
+tsdisplay(bestmodel_bikini$residuals)
+plot(forecast(bestmodel_bikini,h=30))
+
+sales_forecast<-forecast(bestmodel_bikini,h=30)
+sales_forecast
+plot(sales_forecast)
+
+
+#arima for coat
+
+
+data[product_content_id==3904356 & year(as.Date(event_date))==2020]
+
+
+sample_product=data[product_content_id==3904356]
+filtered_product=sample_product[visit_count>0]
+plot(filtered_product[, list(price,sold_count)])
+plot(filtered_product[, list(ty_visits,sold_count)])
+plot(filtered_product[, list(visit_count,sold_count)])
+
+filtered_product=filtered_product[order(event_date)]
+filtered_product[,event_date:=as.Date(event_date)]
+filtered_product=filtered_product[,list(product_content_id,event_date,price,sold_count)]
+filtered_product
+ts_sales<-ts(filtered_product$sold_count,start=c(2019,120),frequency = 365)
+library(forecast)
+tsdisplay(ts_sales,lag.max = 30)
+log_ts<-log(ts_sales)
+tsdisplay(as.factor(log_ts),lag.max=30)
+tsdisplay(diff(as.factor(log_ts)),lag.max=30)
+tsdisplay(diff(diff(as.factor(log_ts)),lag.max=30))
+as.numeric(mean(diff(diff(log_ts),lag=10)))
+
+
+
+
+
+cand1<-arima(as.factor(log_ts),order=c(0,1,1),seasonal=c(1,1,0))
+cand1
+tsdisplay(cand1$residuals)
+plot(forecast(cand1,h=30))
+
+cand2<-arima(as.factor(log_ts),order=c(1,1,1),seasonal=c(1,1,0))
+cand2
+tsdisplay((cand2$residuals))
+plot(forecast(cand2,h=30))
+
+cand3<-arima(as.factor(log_ts),order=c(0,1,0),seasonal=c(1,1,0))
+cand3
+tsdisplay((cand3$residuals))
+plot(forecast(cand3,h=30))
+
+
+
+cand4<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,1,0))
+cand4
+tsdisplay((cand4$residuals))
+plot(forecast(cand4,h=30))
+
+cand5<-auto.arima(as.factor(log_ts))
+cand5
+tsdisplay((cand5$residuals))
+plot(forecast(cand5,h=30))
+
+cand6<-arima(as.factor(log_ts),order=c(2,0,3),seasonal=c(1,3,0))
+cand6
+tsdisplay((cand6$residuals))
+plot(forecast(cand6,h=30))
+
+bestmodel_jacket<-cand1
+bestmodel_jacket
+tsdisplay(bestmodel_jacket$residuals)
+plot(forecast(bestmodel_jacket,h=30))
+
+sales_forecast<-forecast(bestmodel_jacket,h=30)
+sales_forecast
+plot(sales_forecast)
